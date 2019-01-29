@@ -224,7 +224,7 @@ def create_track(chunks, peaks,   seed):
     chunks = stretch_chunks(chunks, seed)
     chunks = reverse_and_pitch_shift_some(chunks, seed)
     output = place_chunks(chunks, peaks, len(data), seed)
-    fn     = gen_unique_fn('output_')
+    fn     = gen_unique_fn('outputs/output_')
     wav.write(fn, 44100, output)
 
 def tweeter(data, peaks, seed, fs=44100):
@@ -234,14 +234,14 @@ def tweeter(data, peaks, seed, fs=44100):
     chunks        = reverse_and_pitch_shift_some(chunks, seed, vals=[24, 48, 24])
     # chunks        = add_delay(chunks, seed)
     output        = place_chunks(chunks, peaks,len(data), seed )
-    fn            = gen_unique_fn('output_')
+    fn            = gen_unique_fn('outputs/output_')
     wav.write(fn, 44100, output)
 
 def wiggler( chunks, peaks, seed, target_len):
     chunks = apply_all_envelopes(chunks, seed)
     chunks = wiggly_pads(chunks, seed)
     output = place_chunks(chunks, peaks, target_len, seed)
-    fn     = gen_unique_fn('wiggler_')
+    fn     = gen_unique_fn('outputs/wiggler_')
     wav.write(fn, 44100, output)
 
 if __name__ == '__main__':

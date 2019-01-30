@@ -92,8 +92,6 @@ def stretch_chunks(data, seed, scale_range=[0.25, 0.5]):
     print('finished stretching chunks')
     return output
 
-
-
 def place_chunks(chunks, peaks, target_len, seed):
     #this is final, all chunks flattened to single output
     np.random.seed(seed)
@@ -101,13 +99,17 @@ def place_chunks(chunks, peaks, target_len, seed):
     output = np.zeros(target_len)
     for c in range(len(chunks)):
         offset = int(np.random.randint(avg) - (avg  / 2)) + peaks[c]
+        length = len(chunks[c]) + offset
         try:
-            output[offset:len(chunks[c])+offset] += chunks[c]
+            output[offset:length] += chunks[c]
         except:
+            if len(output) < length:
+                output = np.hstack((output, np.zeros(length-len(output))))
+                output[offset:length] += chunks[c]
             print('source: ' + str(output[offset:len(chunks[c])+offset].shape))
             print('target: ' + str(chunks[c].shape))
     print('finished placing chunks')
-    return output
+    return normalize(output)
 
 def reverse_some(data, seed):
     np.random.seed(seed)
@@ -195,8 +197,8 @@ def add_delays_to_chunk(data, seed, num_delays=3, max_offset=1.0, fs=44100):
     echos = []
     for i in range(num_delays):
         offset = int(np.random.random()*fs)
-        echo = (np.roll(data, offset) * 0.5 )
-        echo = fil.butter_lowpass_filter(echo, mtof(60.0), order=i+1)
+        echo   = (np.roll(data, offset) * 0.5 )
+        echo   = fil.butter_lowpass_filter(echo, mtof(60.0), order=i+1)
         echos.append(echo + data)
     return normalize(np.sum(np.array(echos), axis=0))
 
@@ -215,7 +217,7 @@ def create_wiggly_pad(chunk, seed, scale_range=[0.25, 0.5]):
     output.append(stretched*mid_perl)
     output.append(high*high_perl)
     output = np.sum(np.array(output), axis=0)
-    return np.array(output) / np.amax(output)
+    return output
 
 def wiggly_pads(chunks, seed):
     output = []
@@ -223,59 +225,82 @@ def wiggly_pads(chunks, seed):
         output.append(create_wiggly_pad(chunk, seed))
     return output
 
+def get_strength_of_peaks(data, fs=44100, half_window=11025):
+    peaks     = lib.onset.onset_detect(y=data, sr=fs, hop_length=512, units='samples')
+    strengths = []
+    for o in peaks:
+        left     = max(o-half_window, 0)
+        right    = min(o+half_window, len(data))
+        vicinity = data[left:right]
+        strengths.append( max(np.amax(vicinity), np.abs(np.amin(vicinity))))
+    return onsets, strengths
+
+def winnow_peaks(data, keep_percent=0.5):
+    peaks, strengths = get_strength_of_peaks(data, half_window=11025)
+    #created sorted pairs of strengths and onset locations, keep only the strongest
+    target = int(len(peaks) * keep_percent)
+    pairs  = sorted(list(zip(strengths, peaks)))
+    output = []
+    for i in range(len(pairs)-1, len(pairs)-1-target, -1):
+        output.append(pairs[i][1])
+    return sorted(output)
 
 
 
 
 #==========main methods========#
-def create_track(chunks, peaks,   seed):
-    chunks = apply_all_envelopes(chunks)
+def stretch_and_reverse(chunks, peaks,  target_length, seed):
+    #apply envelopes before
     chunks = stretch_chunks(chunks, seed)
     chunks = reverse_and_pitch_shift_some(chunks, seed)
-    output = place_chunks(chunks, peaks, len(data), seed)
+    output = place_chunks(chunks, peaks, target_length, seed)
     fn     = gen_unique_fn('output_', 'outputs/')
     wav.write(fn, 44100, output)
 
-def tweeter(data, peaks, seed, fs=44100):
-    peaks, chunks = get_surrounding_chunks(data, peaks)
-    chunks        = apply_all_envelopes(chunks, seed)
+def tweeter(chunks, peaks, target_length, seed, fs=44100):
+    #apply envelopes before
     chunks        = stretch_chunks(chunks, seed, scale_range=[6.0, 8.5])
     chunks        = reverse_and_pitch_shift_some(chunks, seed, vals=[24, 48, 24])
-    # chunks        = add_delay(chunks, seed)
     output        = place_chunks(chunks, peaks,len(data), seed )
+    output        = add_delays_to_chunk(output, seed)
     fn            = gen_unique_fn('output_', 'outputs/')
     wav.write(fn, 44100, output)
 
-def wiggler( chunks, peaks, seed, target_len):
-    chunks = apply_all_envelopes(chunks, seed)
+def wiggler( chunks, peaks, target_len,  seed):
+    #apply envelopes before
     chunks = wiggly_pads(chunks, seed)
     output = place_chunks(chunks, peaks, target_len, seed)
     fn     = gen_unique_fn('wiggler_', 'outputs/')
     wav.write(fn, 44100, output)
 
 def crickets(chunks,peaks, target_length, seed):
+    #don't apply envelope before
     chunks = stretch_chunks(chunks, seed, scale_range=[6.0, 8.5])
     chunks = apply_all_envelopes(chunks, env_len=0.5)
     output = place_chunks(chunks, peaks, target_length, seed )
-
     output = add_delays_to_chunk(output, seed)
-
     fn     = gen_unique_fn('crickets_', 'outputs/')
     wav.write(fn, 44100, output)
 
 
 
 if __name__ == '__main__':
-    input_fn = 'input/lil_deb.wav'
+    input_fn = 'input/sawbones.wav'
     fs, data = wav.read(input_fn)
 
     onsets        = lib.onset.onset_detect(y=data, sr=fs, hop_length=512, units='samples', backtrack=True)
+    winnowed      = winnow_peaks(data)
 
-    peaks, chunks = get_chunks(data, onsets, min_length=10000)
+    peaks, chunks = get_chunks(data, winnowed, min_length=10000)
+    # peaks, chunks = get_surrounding_chunks(data, onsets)
+    chunks        = apply_all_envelopes(chunks)
 
     procs = []
     for p in range(3):
-        procs.append(Process(target=crickets, args=(chunks, peaks,len(data), p)))
+        # procs.append(Process(target=crickets, args=(chunks, peaks,len(data), p)))
+        # procs.append(Process(target=tweeter, args=(chunks, peaks,len(data), p)))
+        # procs.append(Process(target=wiggler, args=(chunks, peaks,len(data), p)))
+        procs.append(Process(target=stretch_and_reverse, args=(chunks, peaks, len(data), p)))
 
     for proc in procs:
         proc.start()

@@ -33,6 +33,15 @@ def get_chunks(data, onsets, max_length=100000, min_length=40000):
         #     peaks.append(curr)
     return peaks, output
 
+def mirror_chunks(chunks, onsets):
+    output  = []
+    new_ons = []
+    for c in range(len(chunks)):
+        output.append(np.hstack((chunks[c][::-1], chunks[c][1:])))
+        new_ons.append(onsets[c] - len(chunks[c]))
+    return new_ons, output
+
+
 def get_surrounding_chunks(data, onsets, fs=44100, max_length=10, min_length=0.1):
     max_len  =     fs * max_length
     min_len  = int(fs * min_length)
@@ -133,7 +142,7 @@ def pitch_shift_some(data, seed, fs=44100, vals=[12, -12]):
         elif len(vals) == 3:
             output.append(lib.effects.pitch_shift(d, fs, vals[2]))
         else:
-            ouput.append(d)
+            output.append(d)
     return output
 
 def reverse_and_pitch_shift_some(data, seed, fs=44100, vals=[12, -12]):
@@ -257,6 +266,15 @@ def stretch_and_reverse(chunks, peaks,  target_length, seed):
     fn     = gen_unique_fn('output_', 'outputs/')
     wav.write(fn, 44100, output)
 
+def mirrored_chunks(chunks, peaks, target_length, seed):
+    #apply envelopes ahead of time
+    chunks = stretch_chunks(chunks, seed)
+    chunks = pitch_shift_some(chunks, seed, fs=44100, vals=[12, -12])
+    peaks, chunks = mirror_chunks(chunks, peaks)
+    output = place_chunks(chunks, peaks, target_length, seed)
+    fn     = gen_unique_fn('mirror_', 'outputs/')
+    wav.write(fn, 44100, output)
+
 def tweeter(chunks, peaks, target_length, seed, fs=44100):
     #apply envelopes before
     chunks        = stretch_chunks(chunks, seed, scale_range=[6.0, 8.5])
@@ -288,10 +306,10 @@ if __name__ == '__main__':
     input_fn = 'input/sawbones.wav'
     fs, data = wav.read(input_fn)
 
-    onsets        = lib.onset.onset_detect(y=data, sr=fs, hop_length=512, units='samples', backtrack=True)
-    winnowed      = winnow_peaks(data)
+    onsets        = lib.onset.onset_detect(y=data, sr=fs, hop_length=512, units='samples', backtrack=False)
+    # winnowed      = winnow_peaks(data)
 
-    peaks, chunks = get_chunks(data, winnowed, min_length=10000)
+    peaks, chunks = get_chunks(data, onsets, min_length=10000)
     # peaks, chunks = get_surrounding_chunks(data, onsets)
     chunks        = apply_all_envelopes(chunks)
 
@@ -300,7 +318,8 @@ if __name__ == '__main__':
         # procs.append(Process(target=crickets, args=(chunks, peaks,len(data), p)))
         # procs.append(Process(target=tweeter, args=(chunks, peaks,len(data), p)))
         # procs.append(Process(target=wiggler, args=(chunks, peaks,len(data), p)))
-        procs.append(Process(target=stretch_and_reverse, args=(chunks, peaks, len(data), p)))
+        # procs.append(Process(target=stretch_and_reverse, args=(chunks, peaks, len(data), p)))
+        procs.append(Process(target=mirrored_chunks, args=(chunks, peaks, len(data), p)))
 
     for proc in procs:
         proc.start()

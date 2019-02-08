@@ -7,6 +7,7 @@ from os import listdir  as ls
 import filters          as fil
 
 
+
 from multiprocessing import Process, Queue
 
 
@@ -118,6 +119,21 @@ def place_chunks(chunks, peaks, target_len, seed):
             print('source: ' + str(output[offset:len(chunks[c])+offset].shape))
             print('target: ' + str(chunks[c].shape))
     print('finished placing chunks')
+    return normalize(output)
+
+def place_chunks_non_random(chunks):
+    '''input is a dictionary of indices mapped to chunks'''
+    output = np.zeros(1)
+    print('num_chunks', len(chunks.keys()))
+    for k in chunks.keys():
+        chunk_len = len(chunks[k])
+        if len(output) < k+chunk_len:
+            #if needed, extend output
+            output = np.hstack((output, np.zeros(chunk_len*10)))
+
+        # output[k:(chunk_len+k)] += chunks[k]
+        for s in range(len(chunks[k])):
+            output[k+s] += chunks[k][s]
     return normalize(output)
 
 def reverse_some(data, seed):
@@ -255,6 +271,68 @@ def winnow_peaks(data, keep_percent=0.5):
     return sorted(output)
 
 
+def swoop(chunk, peak):
+    '''
+    get chunk, mirror it.
+    get bell curve shaped intensity curve around peak.
+    as intensity curve gets higher select more and more little chunks
+    select chunks from where they occur in the area, but with small random offsets.
+    possibly apply some swooshing of panning or filters, pitch shifting.
+    '''
+    mirrored  = lib.effects.time_stretch(np.hstack((chunk[::-1], chunk)), 0.1)
+
+    ramp_len  = int(len(mirrored) / 2)
+    intensity = np.hstack((np.linspace(1., 20., ramp_len), np.linspace(20., 1., ramp_len)))
+
+    grain_len = int(44100) / 30
+    rand_size = int(44100 / 30)
+    grains    = {}
+    #split the chunk into 10 parts
+    seg_len   = int(len(mirrored)/10)
+
+
+    #make a cloud with (sample from intensity) number of points at each seed
+    cursor    = 0
+    while cursor < len(mirrored):
+        num_grains = int(intensity[int(cursor+(seg_len/2))%len(intensity)])
+        for g in range(num_grains):
+            try:
+                start = np.random.randint(cursor, cursor+seg_len)
+                end   = int(grain_len + np.random.randint(rand_size) + start)
+                print('start', start)
+                print('end', end, len(mirrored))
+                raw = mirrored[start:end]
+                raw = lib.effects.time_stretch(raw, 0.5)
+                grain = apply_envelope(raw)
+                grains[start] = grain
+            except:
+                pass
+        cursor += seg_len
+    output = place_chunks_non_random(grains)
+    return output
+
+
+def crossfade(source, target):
+    #todo support other overlap amounts besides total length
+    curve  = np.sqrt(0.5*(1.0+np.linspace(-1., 1., len(source), endpoint=True)))
+    output = target*curve
+    two    = (source * curve[::-1])
+    return output + two
+
+def do_crossfade(source, target, overlap_length):
+    segments = []
+    segments.append(source[:-overlap_length])
+    fade     = crossfade(source[-overlap_length:], target[:overlap_length])
+    segments.append(fade)
+    segments.append(target[overlap_length:])
+    return np.hstack(np.array(segments))
+
+def fade_to_higher(chunk):
+    lower = lib.effects.pitch_shift(chunk, 44100, -12)
+    upper = lib.effects.pitch_shift(chunk, 44100, 24)
+    return do_crossfade(lower, upper, len(lower))
+
+
 
 
 #==========main methods========#
@@ -303,13 +381,44 @@ def crickets(chunks,peaks, target_length, seed):
 
 
 if __name__ == '__main__':
-    input_fn = 'input/sawbones.wav'
+    input_fn = 'input/lil_deb.wav'
     fs, data = wav.read(input_fn)
-
-    onsets        = lib.onset.onset_detect(y=data, sr=fs, hop_length=512, units='samples', backtrack=False)
-    # winnowed      = winnow_peaks(data)
+    onsets   = lib.onset.onset_detect(y=data, sr=fs, hop_length=512, units='samples', backtrack=True)
 
     peaks, chunks = get_chunks(data, onsets, min_length=10000)
+
+
+
+    def make_whispy_cloud(chunk, onsets, seed):
+        output = np.zeros()
+
+
+
+
+    def get_whisps(chunk, onset, seed):
+        np.random.seed(seed)
+        length     = int(44100 * 0.1)
+        num_whisps = 4
+        whisps     = []
+        for w in range(num_whisps):
+            start = np.random.randint(len(chunk)-length))
+            whisp = apply_envelope(chunk[start:start+length], env_len=0.5)
+            whisp = fil.butter_lowpass_filter(whisp, 500.0, order=1)
+            whisp = lib.effects.time_stretch(whisp, 0.025)
+            whisp = lib.effects.pitch_shift(whisp, 44100, 12)
+            whisps.append(whisp)
+        base   = max([len(i) for i in whisps])
+        output = np.zeros(base*2)
+        output[:len(whisps[0])] = output[:len(whisps[0])+whisps[0]
+        return whisps
+
+
+
+
+
+    wav.write('swoop.wav', 44100, mir)
+    print('done')
+    quit()
     # peaks, chunks = get_surrounding_chunks(data, onsets)
     chunks        = apply_all_envelopes(chunks)
 

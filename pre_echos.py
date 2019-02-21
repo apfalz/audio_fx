@@ -387,13 +387,8 @@ if __name__ == '__main__':
 
     peaks, chunks = get_chunks(data, onsets, min_length=10000)
 
-
-
     def make_whispy_cloud(chunk, onsets, seed):
         output = np.zeros()
-
-
-
 
     def get_whisps(chunk, onset, seed):
         np.random.seed(seed)
@@ -401,7 +396,7 @@ if __name__ == '__main__':
         num_whisps = 4
         whisps     = []
         for w in range(num_whisps):
-            start = np.random.randint(len(chunk)-length))
+            start = np.random.randint(len(chunk)-length)
             whisp = apply_envelope(chunk[start:start+length], env_len=0.5)
             whisp = fil.butter_lowpass_filter(whisp, 500.0, order=1)
             whisp = lib.effects.time_stretch(whisp, 0.025)
@@ -409,7 +404,7 @@ if __name__ == '__main__':
             whisps.append(whisp)
         base   = max([len(i) for i in whisps])
         output = np.zeros(base*2)
-        output[:len(whisps[0])] = output[:len(whisps[0])+whisps[0]
+        output[:len(whisps[0])] = output[:len(whisps[0])+whisps[0]]
         return whisps
 
 

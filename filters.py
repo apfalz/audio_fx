@@ -1,5 +1,7 @@
 from scipy.signal import butter, lfilter
 import scipy.io.wavfile as wav
+import pre_echos        as pe
+import numpy            as np
 
 
 def butter_lowpass(cutoff, fs, order=5):
@@ -23,19 +25,29 @@ def butter_bandpass(lowcut, highcut, fs, order=5):
     return b, a
 
 
-def butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
-    b, a = butter_bandpass(lowcut, highcut, fs, order=order)
+def butter_bandpass_filter(data, midi_center_freq, fs, order=2):
+    center_freq = pe.mtof(midi_center_freq)
+    tolerance   = (pe.mtof(midi_center_freq+1.0) - center_freq) / 2.0
+    print('midi', midi_center_freq)
+    print('center', center_freq)
+    print('tolerance', tolerance)
+    b, a = butter_bandpass(center_freq - tolerance, center_freq + tolerance, fs, order=order)
     y = lfilter(b, a, data)
     return y
 
+def bandpass_with_octaves(data, midi_center_freq, fs, order=3):
+    freqs  = [midi_center_freq, midi_center_freq+12.0, midi_center_freq-12.0]
+    output = []
+    for f in freqs:
+        y = butter_bandpass_filter(data, f, fs, order=order)
+        output.append(y)
+    return output
 
 if __name__ == '__main__':
     fs, data = wav.read('input/lil_deb.wav')
 
-    bp = butter_bandpass_filter(data, 420.0, 460.0, fs, order=3)
-    lp = butter_lowpass_filter(data, 110.0, fs, order=3)
+    output = bandpass_with_octaves(data, 63.0, fs)
+    for o in range(len(output)):
+        wav.write('bp' + str(o) + '.wav', fs, output[o])
 
-    fn = 'lp.wav'
-    wav.write(fn, fs, lp)
-
-    wav.write('bp.wav', fs, bp)
+    quit()

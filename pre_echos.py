@@ -127,13 +127,22 @@ def place_chunks_non_random(chunks):
     print('num_chunks', len(chunks.keys()))
     for k in chunks.keys():
         chunk_len = len(chunks[k])
-        if len(output) < k+chunk_len:
-            #if needed, extend output
-            output = np.hstack((output, np.zeros(chunk_len*10)))
-
         # output[k:(chunk_len+k)] += chunks[k]
+        error = False
         for s in range(len(chunks[k])):
-            output[k+s] += chunks[k][s]
+            if len(output) < k + chunk_len:
+                # if needed, extend output
+                output = np.hstack((output, np.zeros(k+chunk_len)))
+                print('newlen', len(output))
+            try:
+                output[k+s] += chunks[k][s]
+            except:
+                if error == False:
+                    print('len(output)', len(output), 'len(output[k+s:])', len(output[k+s:]))
+                    print('k+s', k+s)
+                    output[k + s] += chunks[k][s]
+                    error = True
+
     return normalize(output)
 
 def reverse_some(data, seed):
@@ -257,8 +266,8 @@ def get_strength_of_peaks(data, fs=44100, half_window=11025):
         left     = max(o-half_window, 0)
         right    = min(o+half_window, len(data))
         vicinity = data[left:right]
-        strengths.append( max(np.amax(vicinity), np.abs(np.amin(vicinity))))
-    return onsets, strengths
+        strengths.append(max(np.amax(vicinity), np.abs(np.amin(vicinity))))
+    return peaks, strengths
 
 def winnow_peaks(data, keep_percent=0.5):
     peaks, strengths = get_strength_of_peaks(data, half_window=11025)
@@ -267,8 +276,8 @@ def winnow_peaks(data, keep_percent=0.5):
     pairs  = sorted(list(zip(strengths, peaks)))
     output = []
     for i in range(len(pairs)-1, len(pairs)-1-target, -1):
-        output.append(pairs[i][1])
-    return sorted(output)
+        output.append(pairs[i])
+    return output
 
 
 def swoop(chunk, peak):

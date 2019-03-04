@@ -29,9 +29,6 @@ def get_chunks(data, onsets, max_length=100000, min_length=40000):
         if diff > min_length:
             output.append(data[curr:next])
             peaks.append(curr)
-        # elif diff < min_length:
-        #     output.append(data[curr:curr+min_length])
-        #     peaks.append(curr)
     return peaks, output
 
 def mirror_chunks(chunks, onsets):
@@ -62,6 +59,8 @@ def get_surrounding_chunks(data, onsets, fs=44100, max_length=10, min_length=0.1
             peaks.append(onsets[o])
         elif diff < min_len:
             new_left  = onsets[o] - min_len
+            if new_left < 0:
+                continue
             new_right = onsets[o] + min_len
             output.append(data[new_left:new_right])
             peaks.append(onsets[o])
@@ -110,6 +109,8 @@ def place_chunks(chunks, peaks, target_len, seed):
     for c in range(len(chunks)):
         offset = int(np.random.randint(avg) - (avg  / 2)) + peaks[c]
         length = len(chunks[c]) + offset
+        if offset < 0 or length > target_len:
+            continue
         try:
             output[offset:length] += chunks[c]
         except:
@@ -144,6 +145,28 @@ def place_chunks_non_random(chunks):
                     error = True
 
     return normalize(output)
+
+def two_channel_place_chunks(chunks):
+    '''input is a dictionary of indices mapped to chunks'''
+    output = [np.zeros(1), np.zeros(1)]
+    counter = 0
+    for k in chunks.keys():
+        counter += 1
+        chunk_len = len(chunks[k])
+        error = False
+        for s in range(len(chunks[k])):
+            if len(output[counter%2]) < k + chunk_len:
+                # if needed, extend output
+                output[0] = np.hstack((output[0], np.zeros(k+chunk_len)))
+                output[1] = np.hstack((output[1], np.zeros(k+chunk_len)))
+            try:
+                output[counter%2][k+s] += chunks[k][s]
+            except:
+                if error == False:
+                    output[0] = np.hstack((output[0], np.zeros(k + chunk_len)))
+                    output[1] = np.hstack((output[1], np.zeros(k + chunk_len)))
+                    error = True
+    return normalize(np.array(output).T)
 
 def reverse_some(data, seed):
     np.random.seed(seed)
@@ -345,22 +368,22 @@ def fade_to_higher(chunk):
 
 
 #==========main methods========#
-def stretch_and_reverse(chunks, peaks,  target_length, seed):
+def stretch_and_reverse(chunks, peaks,  target_length, seed, fs=44100):
     #apply envelopes before
     chunks = stretch_chunks(chunks, seed)
     chunks = reverse_and_pitch_shift_some(chunks, seed)
     output = place_chunks(chunks, peaks, target_length, seed)
     fn     = gen_unique_fn('output_', 'outputs/')
-    wav.write(fn, 44100, output)
+    wav.write(fn, fs, output)
 
-def mirrored_chunks(chunks, peaks, target_length, seed):
+def mirrored_chunks(chunks, peaks, target_length, seed, fs=44100):
     #apply envelopes ahead of time
     chunks = stretch_chunks(chunks, seed)
-    chunks = pitch_shift_some(chunks, seed, fs=44100, vals=[12, -12])
+    chunks = pitch_shift_some(chunks, seed, fs=fs, vals=[12, -12])
     peaks, chunks = mirror_chunks(chunks, peaks)
     output = place_chunks(chunks, peaks, target_length, seed)
     fn     = gen_unique_fn('mirror_', 'outputs/')
-    wav.write(fn, 44100, output)
+    wav.write(fn, fs, output)
 
 def tweeter(chunks, peaks, target_length, seed, fs=44100):
     #apply envelopes before
@@ -369,70 +392,69 @@ def tweeter(chunks, peaks, target_length, seed, fs=44100):
     output        = place_chunks(chunks, peaks,len(data), seed )
     output        = add_delays_to_chunk(output, seed)
     fn            = gen_unique_fn('output_', 'outputs/')
-    wav.write(fn, 44100, output)
+    print('fs:' + str(fs))
+    wav.write(fn, fs, output)
 
-def wiggler( chunks, peaks, target_len,  seed):
+def wiggler( chunks, peaks, target_len,  seed, fs=44100):
     #apply envelopes before
     chunks = wiggly_pads(chunks, seed)
     output = place_chunks(chunks, peaks, target_len, seed)
     fn     = gen_unique_fn('wiggler_', 'outputs/')
-    wav.write(fn, 44100, output)
+    wav.write(fn, fs, output)
 
-def crickets(chunks,peaks, target_length, seed):
+def crickets(chunks,peaks, target_length, seed, fs=44100):
     #don't apply envelope before
     chunks = stretch_chunks(chunks, seed, scale_range=[6.0, 8.5])
     chunks = apply_all_envelopes(chunks, env_len=0.5)
     output = place_chunks(chunks, peaks, target_length, seed )
     output = add_delays_to_chunk(output, seed)
     fn     = gen_unique_fn('crickets_', 'outputs/')
-    wav.write(fn, 44100, output)
+    wav.write(fn, fs, output)
 
 
 
 if __name__ == '__main__':
     input_fn = 'input/lil_deb.wav'
     fs, data = wav.read(input_fn)
-    onsets   = lib.onset.onset_detect(y=data, sr=fs, hop_length=512, units='samples', backtrack=True)
-
-    peaks, chunks = get_chunks(data, onsets, min_length=10000)
-
-    def make_whispy_cloud(chunk, onsets, seed):
-        output = np.zeros()
-
-    def get_whisps(chunk, onset, seed):
-        np.random.seed(seed)
-        length     = int(44100 * 0.1)
-        num_whisps = 4
-        whisps     = []
-        for w in range(num_whisps):
-            start = np.random.randint(len(chunk)-length)
-            whisp = apply_envelope(chunk[start:start+length], env_len=0.5)
-            whisp = fil.butter_lowpass_filter(whisp, 500.0, order=1)
-            whisp = lib.effects.time_stretch(whisp, 0.025)
-            whisp = lib.effects.pitch_shift(whisp, 44100, 12)
-            whisps.append(whisp)
-        base   = max([len(i) for i in whisps])
-        output = np.zeros(base*2)
-        output[:len(whisps[0])] = output[:len(whisps[0])+whisps[0]]
-        return whisps
-
-
-
+    onsets   = lib.onset.onset_detect(y=data, sr=fs, hop_length=512, units='samples', backtrack=False)
+    #
+    # peaks, chunks = get_chunks(data, onsets, min_length=10000)
+    #
+    # def make_whispy_cloud(chunk, onsets, seed):
+    #     output = np.zeros()
+    #
+    # def get_whisps(chunk, onset, seed):
+    #     np.random.seed(seed)
+    #     length     = int(44100 * 0.1)
+    #     num_whisps = 4
+    #     whisps     = []
+    #     for w in range(num_whisps):
+    #         start = np.random.randint(len(chunk)-length)
+    #         whisp = apply_envelope(chunk[start:start+length], env_len=0.5)
+    #         whisp = fil.butter_lowpass_filter(whisp, 500.0, order=1)
+    #         whisp = lib.effects.time_stretch(whisp, 0.025)
+    #         whisp = lib.effects.pitch_shift(whisp, 44100, 12)
+    #         whisps.append(whisp)
+    #     base   = max([len(i) for i in whisps])
+    #     output = np.zeros(base*2)
+    #     output[:len(whisps[0])] = output[:len(whisps[0])+whisps[0]]
+    #     return whisps
+    #
 
 
-    wav.write('swoop.wav', 44100, mir)
-    print('done')
-    quit()
-    # peaks, chunks = get_surrounding_chunks(data, onsets)
+
+
+
+    peaks, chunks = get_surrounding_chunks(data, onsets)
     chunks        = apply_all_envelopes(chunks)
 
     procs = []
     for p in range(3):
-        # procs.append(Process(target=crickets, args=(chunks, peaks,len(data), p)))
-        # procs.append(Process(target=tweeter, args=(chunks, peaks,len(data), p)))
-        # procs.append(Process(target=wiggler, args=(chunks, peaks,len(data), p)))
+        procs.append(Process(target=crickets, args=(chunks, peaks,len(data), p, 11025)))
+        # procs.append(Process(target=tweeter, args=(chunks, peaks,len(data), p), kwargs={'fs': 11025}))
+        # procs.append(Process(target=wiggler, args=(chunks, peaks, len(data), p)))
+        # procs.append(Process(target=mirrored_chunks, args=(chunks, peaks, len(data), p)))
         # procs.append(Process(target=stretch_and_reverse, args=(chunks, peaks, len(data), p)))
-        procs.append(Process(target=mirrored_chunks, args=(chunks, peaks, len(data), p)))
 
     for proc in procs:
         proc.start()
@@ -443,5 +465,5 @@ if __name__ == '__main__':
 
 
     print(time.time() - start_time)
-
+    quit()
     # half     = lib.effects.time_stretch(data, 0.5)

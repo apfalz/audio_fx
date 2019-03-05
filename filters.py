@@ -17,6 +17,17 @@ def butter_lowpass_filter(data, cutoff, fs=44100, order=5):
     y = lfilter(b, a, data)
     return y
 
+def butter_highpass(cutoff, fs, order=5):
+    nyq = 0.5 * fs
+    normal_cutoff = cutoff / nyq
+    b, a = butter(order, normal_cutoff, btype='high', analog=False)
+    return b, a
+
+def butter_highpass_filter(data, cutoff, fs, order=5):
+    b, a = butter_highpass(cutoff, fs, order=order)
+    y = lfilter(b, a, data)
+    return y
+
 
 def butter_bandpass(lowcut, highcut, fs, order=5):
     nyq = 0.5 * fs
@@ -67,6 +78,52 @@ def scale(value, in_lo, in_hi, out_lo, out_hi):
     in_range   = in_hi  - in_lo
     normalized = (value - in_lo) / in_range
     return (normalized * out_range) + out_lo
+
+
+def get_biquad_coeffs(cf, fs, Q, mode):
+    #q [0.1, 10.0]
+    k = np.tan(np.pi * cf / fs)
+    denom = Q + (k * k)
+    norm = 1.0 / ((1.0 + k) / denom)
+    if mode == 'highpass':
+        a = norm
+        b = -2.0 * norm
+        c = norm
+        d =  2.0 * (k*k - 1.0) * norm
+        e = (1.0 - k / denom) * norm
+    elif mode == 'lowpass':
+        a = k * k * norm
+        b = 2.0 * a
+        c = a
+        d = 2.0 * (k * k - 1.0) * norm
+        e = (1.0 - k / denom) * norm
+    return a, b, c, d, e, k, norm
+
+def biquad(data, cf, fs, Q, mode):
+    a, b, c, d, e, k, norm = get_biquad_coeffs(cf, fs, Q, mode)
+    output = [0., 0.]
+    data   = np.hstack([np.zeros(2), data])
+    for i in range(2, len(data)):
+        output.append((a*data[i] + (b*data[i-1])  + (c*data[i-2]) - (d*output[i-1]) - (e*output[i-2])))
+    return np.array(output)
+
+def time_varying_biquad(data, cf, fs, Q, mode):
+    output = [0., 0.,]
+    data   = np.hstack([np.zeros(2), data])
+    for i in range(2, len(data)):
+        a, b, c, d, e, k, norm = get_biquad_coeffs(cf[i], fs, Q, mode)
+        output.append((a*data[i] + (b*data[i-1])  + (c*data[i-2]) - (d*output[i-1]) - (e*output[i-2])))
+    return np.array(output[2:])
+
+def time_varying_biquad_2(data, cf, fs, Q):
+    output = [0., 0.]
+    v      = [0., 0.]
+    data   = np.hstack([np.zeros(2), data])
+    for i in range(2, len(data)):
+        a, b, c, d, e, k, norm = get_biquad_coeffs(cf[i], fs, Q)
+        v.append(data[i] - (a*v[i-1]) - (b*v[i-2]))
+        output.append((c*v[i]) + (d*v[i-1]) + (e*v[i-2]))
+    return np.array(output)
 
 
 if __name__ == '__main__':

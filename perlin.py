@@ -12,7 +12,7 @@ import scipy.io.wavfile as wav
 def create_layer(num_points, amp, target_len):
     points = np.random.random(int(num_points)) - 0.5
     interp = interp1d(np.linspace(0, num_points, num=num_points, endpoint=True), points, kind='cubic')
-    return     interp(np.linspace(0, num_points, num=target_len, endpoint=True)) * amp
+    return    (interp(np.linspace(0, num_points, num=target_len, endpoint=True)) * amp)[::-1]
 
 def perlin(num_octaves, target_length, first_freq, first_amp, freq_scale, amp_scale, normalize=True):
     output   = []
@@ -38,8 +38,7 @@ def rms(data, window_size=512):
     interp = interp1d(np.arange(len(vals)), vals)
     return normalize(interp(np.linspace(0, len(vals)-1, num=len(data), endpoint=True)))
 
-
-def time_varying_perlin( target_length, first_freq, freq_scale, amplitudes, num_octaves=3, normalize=True):
+def time_varying_perlin(target_length, first_freq, freq_scale, amplitudes, num_octaves=3, normalize=True):
     output = []
     cur_freq = first_freq
     for o in range(num_octaves):
@@ -52,10 +51,8 @@ def time_varying_perlin( target_length, first_freq, freq_scale, amplitudes, num_
     else:
         return output
 
-
 def normalize(data):
     return data / max(np.amax(data), np.abs(np.amin(data)))
-
 
 def create_amps(data):
     output = []
@@ -80,13 +77,11 @@ if __name__ == '__main__':
     fs, data = wav.read('input/sawbones.wav')
 
     env = rms(data, window_size=1024)
-
-
-    low = create_layer(1000.0, 1.0, len(data)) * np.array([1.0 - e for e in env])
-    lay = create_layer(1000.0, 1.0, len(data)) * env
-
-    plt.plot(env)
-    plt.plot(lay+low)
-
-
+    o =  perlin(3, 10024, 10, 1.0, 1.1, 0.5, normalize=True)
+    plt.plot(o)
     plt.show()
+    # plt.plot(env)
+    # plt.plot(lay+low)
+
+
+    # plt.show()

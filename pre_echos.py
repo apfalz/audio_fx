@@ -14,10 +14,10 @@ from multiprocessing import Process, Queue
 start_time = time.time()
 
 
-def get_chunks(data, onsets, max_length=100000, min_length=40000):
+def get_chunks(data, onsets, max_length=100000, min_length=11025, clean_chunks=True):
     output = []
     peaks  = []
-    for o in range(len(onsets) -1 ):
+    for o in range(len(onsets) -1):
         next = onsets[o+1]
         curr = onsets[o]
         diff = next - curr
@@ -27,9 +27,26 @@ def get_chunks(data, onsets, max_length=100000, min_length=40000):
             output.append(data[curr:next])
             peaks.append(curr)
         if diff > min_length:
-            output.append(data[curr:next])
+            if clean_chunks:
+                output.append(clean_chunk(data[curr:next]))
+            else:
+                output.append(data[curr:next])
             peaks.append(curr)
     return peaks, output
+
+def clean_chunk(chunk):
+
+    ramp   = np.linspace(0.0, 1.0, len(chunk) // 20, endpoint=True)
+    chunk  = np.array(chunk[:-len(chunk) // 10], copy=True)
+    counter = len(chunk) - 1
+    for i in range(len(ramp) - 1, -1, -1):
+        # print('i', i)
+        # print('counter', counter)
+        chunk[counter] = chunk[counter] * ramp[i]
+        counter -= 1
+    return chunk
+
+
 
 def mirror_chunks(chunks, onsets):
     output  = []
@@ -445,7 +462,7 @@ if __name__ == '__main__':
 
 
 
-    peaks, chunks = get_surrounding_chunks(data, onsets)
+    peaks, chunks = get_chunks(data, onsets)
     chunks        = apply_all_envelopes(chunks)
 
     procs = []

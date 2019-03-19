@@ -39,7 +39,7 @@ def evap_effect(chunks, peaks, fs=44100):
     return output
 
 if __name__ == '__main__':
-    fs, data      = wav.read('input/guitar.wav')
+    fs, data      = wav.read('input/cuckoo.wav')
     data = data[:fs*10]
     onsets        = lib.onset.onset_detect(y=data, sr=fs, hop_length=512, units='samples', backtrack=False)
     peaks, chunks = pe.get_chunks(data, onsets)
@@ -52,7 +52,7 @@ if __name__ == '__main__':
 
 
 
-    o = evap_effect(chunks, peaks)
+    o = evap_effect(chunks, peaks, fs=fs)
     wav.write('outputs/evap.wav', fs, o)
 
 

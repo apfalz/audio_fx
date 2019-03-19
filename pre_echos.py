@@ -40,8 +40,6 @@ def clean_chunk(chunk):
     chunk  = np.array(chunk[:-len(chunk) // 10], copy=True)
     counter = len(chunk) - 1
     for i in range(len(ramp) - 1, -1, -1):
-        # print('i', i)
-        # print('counter', counter)
         chunk[counter] = chunk[counter] * ramp[i]
         counter -= 1
     return chunk
@@ -89,7 +87,7 @@ def get_surrounding_chunks(data, onsets, fs=44100, max_length=10, min_length=0.1
 def get_average_spacing(onsets):
     diffs = []
     for o in range(len(onsets) - 1):
-        diffs.append(onsets[o+1] - onsets[o])
+        diffs.append(np.abs(onsets[o+1] - onsets[o]))#added abs() not sure if that's right....seems right....not sure.
     return int(np.mean(np.array(diffs)))
 
 def apply_all_envelopes(data, env_len=0.25):
@@ -108,7 +106,7 @@ def apply_envelope(data, env_len=0.25):
         c[len(c)-(i+1)] *= ramp[i]
     return np.array(c)
 
-def stretch_chunks(data, seed, scale_range=[0.25, 0.5]):
+def stretch_chunks(data, seed, scale_range=[0.125, 0.5]):
     np.random.seed(seed)
     range_val = scale_range[1] - scale_range[0]
     output = []
@@ -116,6 +114,14 @@ def stretch_chunks(data, seed, scale_range=[0.25, 0.5]):
         rand_val = (np.random.random() * range_val) + scale_range[0]
         output.append(lib.effects.time_stretch(d,rand_val))
     print('finished stretching chunks')
+    return output
+
+def proportional_stretch(chunks, strengths, seed, scale_range=[0.125, 0.5]):
+    np.random.seed(seed)
+    output = []
+    for c in range(len(chunks)):
+        amount = fil.scale(strengths[c], 0., 1., scale_range[0], scale_range[1]) + np.random.random()*scale_range[0]
+        output.append(lib.effects.time_stretch(chunks[c], amount))
     return output
 
 def place_chunks(chunks, peaks, target_len, seed):
@@ -299,8 +305,8 @@ def wiggly_pads(chunks, seed):
         output.append(create_wiggly_pad(chunk, seed))
     return output
 
-def get_strength_of_peaks(data, fs=44100, half_window=11025):
-    peaks     = lib.onset.onset_detect(y=data, sr=fs, hop_length=512, units='samples')
+def get_strength_of_peaks(data, peaks, fs=44100, half_window=11025):
+    # peaks     = lib.onset.onset_detect(y=data, sr=fs, hop_length=512, units='samples')
     strengths = []
     for o in peaks:
         left     = max(o-half_window, 0)
@@ -309,15 +315,17 @@ def get_strength_of_peaks(data, fs=44100, half_window=11025):
         strengths.append(max(np.amax(vicinity), np.abs(np.amin(vicinity))))
     return peaks, strengths
 
-def winnow_peaks(data, keep_percent=0.5):
-    peaks, strengths = get_strength_of_peaks(data, half_window=11025)
+def winnow_peaks(peaks, strengths, keep_percent=0.5):
+    # peaks, strengths = get_strength_of_peaks(data, peaks, half_window=11025)
     #created sorted pairs of strengths and onset locations, keep only the strongest
     target = int(len(peaks) * keep_percent)
-    pairs  = sorted(list(zip(strengths, peaks)))
+    pairs  = sorted(list(zip(strengths, peaks))) #sorted by strength
     output = []
     for i in range(len(pairs)-1, len(pairs)-1-target, -1):
         output.append(pairs[i])
-    return output
+    flipped = sorted([(i[1], i[0]) for i in output])#flip pairs and sort by onset, return re-flipped version
+    final   = [(i[1], i[0]) for i in flipped]
+    return final
 
 
 def swoop(chunk, peak):
@@ -393,10 +401,12 @@ def stretch_and_reverse(chunks, peaks,  target_length, seed, fs=44100):
     fn     = gen_unique_fn('output_', 'outputs/')
     wav.write(fn, fs, output)
 
-def mirrored_chunks(chunks, peaks, target_length, seed, fs=44100):
+def mirrored_chunks(chunks, peaks, strengths, target_length, seed, fs=44100, shift_some=True):
     #apply envelopes ahead of time
-    chunks = stretch_chunks(chunks, seed)
-    chunks = pitch_shift_some(chunks, seed, fs=fs, vals=[12, -12])
+    # chunks = stretch_chunks(chunks, seed) # this one is random
+    chunks = proportional_stretch(chunks, strengths, seed, scale_range=[0.125, 0.5])
+    if shift_some:
+        chunks = pitch_shift_some(chunks, seed, fs=fs, vals=[12, -12])
     peaks, chunks = mirror_chunks(chunks, peaks)
     output = place_chunks(chunks, peaks, target_length, seed)
     fn     = gen_unique_fn('mirror_', 'outputs/')
@@ -406,7 +416,7 @@ def tweeter(chunks, peaks, target_length, seed, fs=44100):
     #apply envelopes before
     chunks        = stretch_chunks(chunks, seed, scale_range=[6.0, 8.5])
     chunks        = reverse_and_pitch_shift_some(chunks, seed, vals=[24, 48, 24])
-    output        = place_chunks(chunks, peaks,len(data), seed )
+    output        = place_chunks(chunks, peaks, len(data), seed )
     output        = add_delays_to_chunk(output, seed)
     fn            = gen_unique_fn('output_', 'outputs/')
     print('fs:' + str(fs))
@@ -431,9 +441,9 @@ def crickets(chunks,peaks, target_length, seed, fs=44100):
 
 
 if __name__ == '__main__':
-    input_fn = 'input/lil_deb.wav'
+    input_fn = 'input/cuckoo.wav'
     fs, data = wav.read(input_fn)
-    onsets   = lib.onset.onset_detect(y=data, sr=fs, hop_length=512, units='samples', backtrack=False)
+    onsets   = lib.onset.onset_detect(y=data, sr=fs, hop_length=512, units='samples', backtrack=True)
     #
     # peaks, chunks = get_chunks(data, onsets, min_length=10000)
     #
@@ -462,16 +472,20 @@ if __name__ == '__main__':
 
 
 
-    peaks, chunks = get_chunks(data, onsets)
-    chunks        = apply_all_envelopes(chunks)
+    # peaks, chunks = get_chunks(data, onsets)
+    peaks, strengths = get_strength_of_peaks(data, onsets, fs)
+    pairs            = winnow_peaks(peaks, strengths, 0.5)
+    strengths, peaks = zip(*pairs)
+    peaks, chunks    = get_chunks(data, peaks)
+    chunks           = apply_all_envelopes(chunks)
 
     procs = []
-    for p in range(3):
-        procs.append(Process(target=crickets, args=(chunks, peaks,len(data), p, 11025)))
-        # procs.append(Process(target=tweeter, args=(chunks, peaks,len(data), p), kwargs={'fs': 11025}))
+    for p in range(5):
+        # procs.append(Process(target=crickets, args=(chunks, peaks,len(data), p, fs)))
+        # procs.append(Process(target=tweeter, args=(chunks, peaks,len(data), p), kwargs={'fs': fs}))
         # procs.append(Process(target=wiggler, args=(chunks, peaks, len(data), p)))
-        # procs.append(Process(target=mirrored_chunks, args=(chunks, peaks, len(data), p)))
-        # procs.append(Process(target=stretch_and_reverse, args=(chunks, peaks, len(data), p)))
+        procs.append(Process(target=mirrored_chunks, args=(chunks, peaks, strengths, len(data), p, fs, False)))
+        # procs.append(Process(target=stretch_and_reverse, args=(chunks, peaks, len(data), p, fs)))
 
     for proc in procs:
         proc.start()

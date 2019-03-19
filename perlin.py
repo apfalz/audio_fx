@@ -73,15 +73,7 @@ def scaled_amps(data):
 
 
 if __name__ == '__main__':
-
-    fs, data = wav.read('input/sawbones.wav')
-
-    env = rms(data, window_size=1024)
-    o =  perlin(3, 10024, 10, 1.0, 1.1, 0.5, normalize=True)
-    plt.plot(o)
-    plt.show()
-    # plt.plot(env)
-    # plt.plot(lay+low)
-
-
-    # plt.show()
+    data = perlin(3, 11025*3, 1000.0, 1.0, 2.0, 0.5, normalize=True)
+    wav.write("outputs/perlin_noise.wav", 11025, data)
+    print('done')
+    quit()

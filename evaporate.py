@@ -6,17 +6,18 @@ import pre_echos as pe
 import perlin    as per
 
 
-def evaporate(chunk, rate=0.25, fs=44100):
+def evaporate(chunk, rate=0.25, use_perlin=False, fs=44100):
     chunk     = fil.time_varying_biquad(chunk, np.linspace(500., 10000., len(chunk) + 2), fs, 1.0, 'highpass')
     chunk     = lib.effects.hpss(chunk)[0]
     stretch   = lib.effects.time_stretch(chunk, rate)
-    stretch   = stretch * ((per.perlin(3, len(stretch), 50, 1.0, 1.1, 0.5, normalize=True) * 0.5)+0.5)
     one       = lib.effects.pitch_shift(chunk, fs, 12)
     one       = lib.effects.time_stretch(one, rate)
-    one       = one * ((per.perlin(3, len(one), 50, 1.0, 1.1, 0.5, normalize=True)*0.5)+0.5)
     two       = lib.effects.pitch_shift(chunk, fs, 24)
     two       = lib.effects.time_stretch(two, rate)
-    two       = two * ((per.perlin(3, len(two), 50, 1.0, 1.1, 0.5, normalize=True)*0.5)+0.5)
+    if use_perlin:
+        stretch   = stretch * ((per.perlin(3, len(stretch), 50, 1.0, 1.1, 0.5, normalize=True) * 0.5)+0.5)
+        one       = one * ((per.perlin(3, len(one), 50, 1.0, 1.1, 0.5, normalize=True)*0.5)+0.5)
+        two       = two * ((per.perlin(3, len(two), 50, 1.0, 1.1, 0.5, normalize=True)*0.5)+0.5)
 
 
     curve     = 0.5 * np.tanh(np.linspace(-3.0, 3.0, len(one))) + 0.5

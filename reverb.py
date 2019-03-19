@@ -37,7 +37,7 @@ def reverb(data,  num):
 if __name__ == '__main__':
     fs, data = wav.read('input/sawbones.wav')
 
-    filtered = time_varying_biquad(data, np.linspace(100., 10000.0, len(data)+2), fs, 1.0 )
+    filtered = fil.time_varying_biquad(data, np.linspace(100., 10000.0, len(data)+2), fs, 1.0 )
     # out = rev + data
     wav.write('outputs/hpf.wav', fs, filtered)
     print('done')

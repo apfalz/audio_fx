@@ -3,7 +3,7 @@ import scipy.io.wavfile as wav
 import pre_echos        as pe
 import numpy            as np
 import shared_functions as sf
-
+np.seterr(all='warn')
 
 def butter_lowpass(cutoff, fs, order=5):
     nyq = 0.5 * fs
@@ -103,8 +103,14 @@ def biquad(data, cf, fs, Q, mode):
     a, b, c, d, e, k, norm = get_biquad_coeffs(cf, fs, Q, mode)
     output = [0., 0.]
     data   = np.hstack([np.zeros(2), data])
+    big    = 1.0#np.finfo('d').max
+    small  = -1.0#np.finfo('d').min
     for i in range(2, len(data)):
-        output.append((a*data[i] + (b*data[i-1])  + (c*data[i-2]) - (d*output[i-1]) - (e*output[i-2])))
+        o_0 = min(output[i-1], big)
+        o_0 = max(output[i-1], small)
+        o_1 = min(output[i-2], big)
+        o_1 = max(output[i-2], small)
+        output.append((a*data[i] + (b*data[i-1])  + (c*data[i-2]) - (d*o_0) - (e*o_1)))
     return np.array(output)
 
 def time_varying_biquad(data, cf, fs, Q, mode):

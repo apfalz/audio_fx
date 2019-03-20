@@ -312,8 +312,34 @@ def get_strength_of_peaks(data, peaks, fs=44100, half_window=11025):
         left     = max(o-half_window, 0)
         right    = min(o+half_window, len(data))
         vicinity = data[left:right]
-        strengths.append(max(np.amax(vicinity), np.abs(np.amin(vicinity))))
+        strengths.append(get_max_of_region(vicinity))
     return peaks, strengths
+
+def get_max_of_region(region):
+    return max(np.amax(region), np.abs(np.amin(region)))
+
+def get_rms_of_region(region):
+    return np.sqrt(np.sum(np.square(region)) / len(region))
+
+def get_envelope(data, window_size=512, order=3, normalize=False, fs=44100):
+    unipolar = np.abs(data)
+    bins     = []
+    cursor   = 0
+    while cursor < len(unipolar) - window_size:
+        bins.append(np.amax(unipolar[cursor:cursor+window_size]))
+        cursor += window_size
+    stairs   = np.array([[bins[i]]*window_size for i in range(len(bins))])
+    stairs   = np.hstack(stairs)
+    if len(stairs) > len(data):
+        stairs   = stairs[:len(data)]
+    elif len(stairs) < len(data):
+        while len(stairs) < len(data):
+            stairs = np.append(stairs, stairs[-1])
+            print(stairs.shape, data.shape)
+    smoothed = fil.butter_lowpass_filter(stairs, 125.0, fs=fs, order=order)
+    if normalize:
+        smoothed = smoothed / np.amax(smoothed)
+    return smoothed
 
 def winnow_peaks(peaks, strengths, keep_percent=0.5):
     # peaks, strengths = get_strength_of_peaks(data, peaks, half_window=11025)

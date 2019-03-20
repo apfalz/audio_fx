@@ -1,9 +1,8 @@
 from scipy.signal import butter, lfilter
 import scipy.io.wavfile as wav
-import pre_echos        as pe
+import fx_functions        as pe
 import numpy            as np
 import shared_functions as sf
-np.seterr(all='warn')
 
 def butter_lowpass(cutoff, fs, order=5):
     nyq = 0.5 * fs

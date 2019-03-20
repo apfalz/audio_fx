@@ -1,5 +1,5 @@
 import numpy            as np
-import pre_echos        as pe
+import fx_functions        as pe
 import scipy.io.wavfile as wav
 import librosa          as lib
 from multiprocessing import Process

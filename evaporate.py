@@ -2,7 +2,7 @@ import numpy as np
 import scipy.io.wavfile as wav
 import filters as fil
 import librosa as lib
-import pre_echos as pe
+import fx_functions as pe
 import perlin    as per
 
 

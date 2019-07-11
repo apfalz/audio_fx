@@ -247,7 +247,7 @@ def reverse_and_pitch_shift_some(data, seed, fs=44100, vals=[12, -12]):
 
     return output
 
-def gen_unique_fn(base, prefix):
+def gen_unique_fn(base, prefix='outputs/'):
     files     = ls('./outputs/')
     files     = [f for f in files if '.wav' in f]
     counter   = 0

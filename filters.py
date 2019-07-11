@@ -117,6 +117,8 @@ def time_varying_biquad(data, cf, fs, Q, mode):
     data   = np.hstack([np.zeros(2), data])
     for i in range(2, len(data)):
         a, b, c, d, e, k, norm = get_biquad_coeffs(cf[i], fs, Q, mode)
+        if i % 10 == 0:
+            print('a', a, 'b', b, 'c', c, 'd', d, 'e', e,  'k', k, 'norm', norm)
         output.append((a*data[i] + (b*data[i-1])  + (c*data[i-2]) - (d*output[i-1]) - (e*output[i-2])))
     return np.array(output[2:])
 
@@ -132,15 +134,12 @@ def time_varying_biquad_2(data, cf, fs, Q):
 
 
 if __name__ == '__main__':
-    fs, data = wav.read('input/lil_deb.wav')
+    fs, data = wav.read('input/long_reverb_impulse.wav')
     pitches  = [65.0, 68.0, 61.0, 60.0, 63.0]
-    for p in range(len(pitches)):
-        env    = get_amplitude_signal(data, pitches[p], fs)
-        o      = sf.osc([sf.mtof(pitches[p])]*len(env)) * env
-        wav.write('test'+str(p)+'.wav', fs, pe.normalize(o))
+
+    ramp     = np.linspace(100.0, 5000.0, len(data)+2)
+
+    filtered = time_varying_biquad(data, ramp, fs, 10.0, 'highpass')
+    wav.write('input/filtered_impulse.wav', fs, filtered)
+    print('done')
     quit()
-    # quit()
-    # quit()
-    # for o in range(len(output)):
-    #     wav.write('bp' + str(o) + '.wav', fs, output[o])
-    # quit()

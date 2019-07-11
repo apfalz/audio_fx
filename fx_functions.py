@@ -335,7 +335,6 @@ def get_envelope(data, window_size=512, order=3, normalize=False, fs=44100):
     elif len(stairs) < len(data):
         while len(stairs) < len(data):
             stairs = np.append(stairs, stairs[-1])
-            print(stairs.shape, data.shape)
     smoothed = fil.butter_lowpass_filter(stairs, 125.0, fs=fs, order=order)
     if normalize:
         smoothed = smoothed / np.amax(smoothed)
@@ -432,7 +431,7 @@ def mirrored_chunks(chunks, peaks, strengths, target_length, seed, fs=44100, shi
     # chunks = stretch_chunks(chunks, seed) # this one is random
     chunks = proportional_stretch(chunks, strengths, seed, scale_range=[0.125, 0.5])
     if shift_some:
-        chunks = pitch_shift_some(chunks, seed, fs=fs, vals=[12, -12])
+        chunks = pitch_shift_some(chunks, seed, fs=fs, vals=[3, -9, 24])
     peaks, chunks = mirror_chunks(chunks, peaks)
     output = place_chunks(chunks, peaks, target_length, seed)
     fn     = gen_unique_fn('mirror_', 'outputs/')
@@ -467,7 +466,7 @@ def crickets(chunks,peaks, target_length, seed, fs=44100):
 
 
 if __name__ == '__main__':
-    input_fn = 'input/cuckoo.wav'
+    input_fn = 'input/yoyo.wav'
     fs, data = wav.read(input_fn)
     onsets   = lib.onset.onset_detect(y=data, sr=fs, hop_length=512, units='samples', backtrack=True)
     #
@@ -507,10 +506,10 @@ if __name__ == '__main__':
 
     procs = []
     for p in range(5):
-        # procs.append(Process(target=crickets, args=(chunks, peaks,len(data), p, fs)))
+        procs.append(Process(target=crickets, args=(chunks, peaks,len(data), p, fs)))
         # procs.append(Process(target=tweeter, args=(chunks, peaks,len(data), p), kwargs={'fs': fs}))
         # procs.append(Process(target=wiggler, args=(chunks, peaks, len(data), p)))
-        procs.append(Process(target=mirrored_chunks, args=(chunks, peaks, strengths, len(data), p, fs, False)))
+        procs.append(Process(target=mirrored_chunks, args=(chunks, peaks, strengths, len(data), p, fs, True)))
         # procs.append(Process(target=stretch_and_reverse, args=(chunks, peaks, len(data), p, fs)))
 
     for proc in procs:

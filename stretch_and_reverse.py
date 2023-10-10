@@ -8,9 +8,7 @@ from multiprocessing import Process
 
 
 if __name__ == '__main__':
-
-    input_fn = 'input/little_deb.wav'
-
+    input_fn = 'input/lil_deb_44100fs.wav'
     fs, data = wav.read(input_fn)
     #get onsets
     onsets   = lib.onset.onset_detect(y=data, sr=fs, hop_length=512, units='samples', backtrack=True)
@@ -28,7 +26,7 @@ if __name__ == '__main__':
 
     procs = []
     for p in range(5):
-        procs.append(Process(target=pe.mirrored_chunks, args=(chunks, peaks, strengths, len(data), p, fs, False)))
+        procs.append(Process(target=pe.stretch_and_reverse, args=(chunks, peaks,  len(data), p, fs)))
 
     for proc in procs:
         proc.start()

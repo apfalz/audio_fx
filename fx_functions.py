@@ -121,7 +121,7 @@ def proportional_stretch(chunks, strengths, seed, scale_range=[0.125, 0.5]):
     output = []
     for c in range(len(chunks)):
         amount = fil.scale(strengths[c], 0., 1., scale_range[0], scale_range[1]) + np.random.random()*scale_range[0]
-        output.append(lib.effects.time_stretch(chunks[c], amount))
+        output.append(lib.effects.time_stretch(chunks[c], rate=amount))
     return output
 
 def place_chunks(chunks, peaks, target_len, seed):
@@ -217,35 +217,38 @@ def pitch_shift_some(data, seed, fs=44100, vals=[12, -12]):
     return output
 
 def reverse_and_pitch_shift_some(data, seed, fs=44100, vals=[12, -12]):
-    np.random.seed(seed)
-    output = []
-    for d in data:
-        shift_rand   = np.random.randint(3)
-        reverse_rand = np.random.randint(2)
-        if shift_rand == 2:
-            if reverse_rand == 1:
-                output.append(lib.effects.pitch_shift(d, fs, vals[0])[::-1])
-            else:
-                output.append(lib.effects.pitch_shift(d, fs, vals[0]))
-        elif shift_rand == 0:
-            if reverse_rand == 1:
-                output.append(lib.effects.pitch_shift(d, fs, vals[1])[::-1])
-            else:
-                output.append(lib.effects.pitch_shift(d, fs, vals[1]))
-        elif shift_rand == 1 and len(vals) == 3:
-            if reverse_rand == 1:
-                output.append(lib.effects.pitch_shift(d, fs, vals[2])[::-1])
-            else:
-                output.append(lib.effects.pitch_shift(d, fs, vals[2]))
-        elif shift_rand == 1 and len(vals) != 3:
-            if reverse_rand == 1:
-                output.append(d[::-1])
-            else:
-                output.append(d)
-        else:
-            print('woopsie')
 
-    return output
+    if vals is not None:
+        np.random.seed(seed)
+        output = []
+        for d in data:
+            shift_rand   = np.random.randint(3)
+            reverse_rand = np.random.randint(2)
+            if shift_rand == 2:
+                if reverse_rand == 1:
+                    output.append(lib.effects.pitch_shift(d, fs, vals[0])[::-1])
+                else:
+                    output.append(lib.effects.pitch_shift(d, fs, vals[0]))
+            elif shift_rand == 0:
+                if reverse_rand == 1:
+                    output.append(lib.effects.pitch_shift(d, fs, vals[1])[::-1])
+                else:
+                    output.append(lib.effects.pitch_shift(d, fs, vals[1]))
+            elif shift_rand == 1 and len(vals) == 3:
+                if reverse_rand == 1:
+                    output.append(lib.effects.pitch_shift(d, fs, vals[2])[::-1])
+                else:
+                    output.append(lib.effects.pitch_shift(d, fs, vals[2]))
+            elif shift_rand == 1 and len(vals) != 3:
+                if reverse_rand == 1:
+                    output.append(d[::-1])
+                else:
+                    output.append(d)
+            else:
+                print('woopsie')
+        return output
+    else:
+        return data
 
 def gen_unique_fn(base, prefix):
     files     = ls('./outputs/')
@@ -419,10 +422,10 @@ def fade_to_higher(chunk):
 
 
 #==========main methods========#
-def stretch_and_reverse(chunks, peaks,  target_length, seed, fs=44100):
+def stretch_and_reverse(chunks, peaks,  target_length, seed, fs=44100, shift_vals=None):
     #apply envelopes before
     chunks = stretch_chunks(chunks, seed)
-    chunks = reverse_and_pitch_shift_some(chunks, seed)
+    chunks = reverse_and_pitch_shift_some(chunks, seed, vals=shift_vals)
     output = place_chunks(chunks, peaks, target_length, seed)
     fn     = gen_unique_fn('output_', 'outputs/')
     wav.write(fn, fs, output)
@@ -467,7 +470,7 @@ def crickets(chunks,peaks, target_length, seed, fs=44100):
 
 
 if __name__ == '__main__':
-    input_fn = 'input/cuckoo.wav'
+    input_fn = 'input/little_deb.wav'
     fs, data = wav.read(input_fn)
     onsets   = lib.onset.onset_detect(y=data, sr=fs, hop_length=512, units='samples', backtrack=True)
     #
@@ -507,10 +510,10 @@ if __name__ == '__main__':
 
     procs = []
     for p in range(5):
-        # procs.append(Process(target=crickets, args=(chunks, peaks,len(data), p, fs)))
+        procs.append(Process(target=crickets, args=(chunks, peaks,len(data), p, fs)))
         # procs.append(Process(target=tweeter, args=(chunks, peaks,len(data), p), kwargs={'fs': fs}))
         # procs.append(Process(target=wiggler, args=(chunks, peaks, len(data), p)))
-        procs.append(Process(target=mirrored_chunks, args=(chunks, peaks, strengths, len(data), p, fs, False)))
+        # procs.append(Process(target=mirrored_chunks, args=(chunks, peaks, strengths, len(data), p, fs, False)))
         # procs.append(Process(target=stretch_and_reverse, args=(chunks, peaks, len(data), p, fs)))
 
     for proc in procs:

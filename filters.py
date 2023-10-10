@@ -22,7 +22,7 @@ def butter_highpass(cutoff, fs, order=5):
     b, a = butter(order, normal_cutoff, btype='high', analog=False)
     return b, a
 
-def butter_highpass_filter(data, cutoff, fs, order=5):
+def butter_highpass_filter(data, cutoff, fs=44100, order=5):
     b, a = butter_highpass(cutoff, fs, order=order)
     y = lfilter(b, a, data)
     return y

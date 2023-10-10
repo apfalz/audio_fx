@@ -8,7 +8,7 @@ from multiprocessing import Process
 
 
 if __name__ == '__main__':
-    input_fn = 'input/cuckoo.wav'
+    input_fn = 'input/little_deb.wav'
     fs, data = wav.read(input_fn)
     #get onsets
     onsets   = lib.onset.onset_detect(y=data, sr=fs, hop_length=512, units='samples', backtrack=True)
